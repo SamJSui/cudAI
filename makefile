@@ -1,9 +1,8 @@
 CC = nvcc
 INCLUDES = -I include/
 CFLAGS = $(INCLUDES)
-INPUT = data/input.txt
+INPUT = data/*.txt
 EXECUTABLES = bin/main
-SRC = src/main.cu src/cuchine.cu
 
 all: $(EXECUTABLES)
 
@@ -12,3 +11,6 @@ bin/main: src/*.cu
 
 run: bin/main
 	$^ $(INPUT)
+
+val: bin/main
+	valgrind $^ $(INPUT)
