@@ -1,7 +1,7 @@
 CC = nvcc
 INCLUDES = -I include/
-CFLAGS = $(INCLUDES)
-INPUT = data/*.txt
+CFLAGS = $(INCLUDES) -g
+INPUT = data/2x2.txt data/2x2_1.txt
 EXECUTABLES = bin/main
 
 all: $(EXECUTABLES)
@@ -14,3 +14,6 @@ run: bin/main
 
 val: bin/main
 	valgrind $^ $(INPUT)
+
+gdb: bin/main
+	gdb $^ $(INPUT)

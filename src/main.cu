@@ -16,5 +16,9 @@ int main(int argc, char **argv) {
     A.read_file(filename1);
     B.read_file(filename2);
 
+    printf("%lf\n", B[1][1]);
+    A.read_file(filename2);
+    printf("%lf\n", A[1][1]);
+
     return 0;
 }
