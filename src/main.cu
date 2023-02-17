@@ -1,4 +1,4 @@
-#include "cuchine.cuh"
+#include "cudai.cuh"
 
 int main(int argc, char **argv) {
     // ERROR CHECK
@@ -16,8 +16,9 @@ int main(int argc, char **argv) {
     A.read_file(filename1);
     B.read_file(filename2);
 
-    C = A + B;
-    std::cout << C;
-    // fprintf(stderr, "TEST\n");
+    std::vector<double> t({10, 11});
+    A.hstack(B);
+    A.hstack(t);
+    std::cout << A;
     return 0;
 }

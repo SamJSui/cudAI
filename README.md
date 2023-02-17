@@ -1,13 +1,8 @@
-# CUchine DArning
-
-Library of parallelized mathematical and machine learning operations
-
+# cudAI
 
 ## About 
 
-**Origin**: *I came up with the name in the middle of an automata lecture*
-
-**Purpose**: *I felt bad whenever I used SymboLab (online math solver), but I also did not want to take out pen(cil) and paper*
+**cudAI** is a CUDA C/C++ that parallelizes linear algebra and machine learning algorithms to provide efficient computing. The goal is to combine aspects of Python's NumPy and Scikit-Learn into a single library, providing matrix operations and model training in a C/C++ environment.
 
 ### Built with
 

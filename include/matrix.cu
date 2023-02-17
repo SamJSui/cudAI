@@ -4,25 +4,26 @@
 
 Matrix::Matrix() {
     dim = 0;
+    cells = 0;
     device = 0;                                    // Device check
     cudaGetDeviceCount((int *) &device);
 }
 
 Matrix::~Matrix() {
-    dim = 0;
+    ;
 }
 
 void Matrix::read_file(char *filename, char delimiter) {
     // READING IN FILE AGAIN
     if (matrix.size() > 0) {
-        int i;
+        size_t i;
         dim = 0;
         for (i = 0; i < get_rows(); i++) { matrix[i].clear(); } // CLEAR
     }
 
     // DECLARE
     std::string line, num;
-    int dim_idx;
+    size_t dim_idx;
 
     // FILE HANDLING
     std::ifstream ifs(filename, std::ifstream::in);
@@ -47,9 +48,10 @@ void Matrix::read_file(char *filename, char delimiter) {
         if (dim_idx == dim) break;
         ++dim_idx;
     }
+    cells = get_rows() * get_cols();
 
     // MATRIX VALUES
-    fill_values(ifs, delimiter);
+    file_data(ifs, delimiter);
 
     // CLOSE FILE
     ifs.close();
@@ -64,7 +66,7 @@ std::vector<double> Matrix::operator[](long long idx) const {
 }
 
 std::ostream& operator<< (std::ostream &os, const Matrix &M) {
-    int i, j;
+    size_t i, j;
     os << "[";
     for (i = 0; i < M.get_rows(); i++) {
         os << "[ ";
@@ -95,7 +97,7 @@ Matrix Matrix::operator-(const Matrix &B) {
 void Matrix::operator+= (const Matrix &B) {
     // ERROR CHECK
     if (get_rows() != B.get_rows() || get_cols() != B.get_cols()) {
-        fprintf(stderr, "ERROR: Invalid '+=' operation!\n");
+        fprintf(stderr, "ERROR: Invalid dimensions for '+=' operation!\n");
         exit(1);
     }
     if (device) { cuda_matadd(B); }
@@ -105,7 +107,7 @@ void Matrix::operator+= (const Matrix &B) {
 void Matrix::operator-= (const Matrix &B) {
     // ERROR CHECK
     if (get_rows() != B.get_rows() || get_cols() != B.get_cols()) {
-        fprintf(stderr, "ERROR: Invalid '+=' operation!\n");
+        fprintf(stderr, "ERROR: Invalid dimensions for '-=' operation!\n");
         exit(1);
     }
 
@@ -115,13 +117,13 @@ void Matrix::operator-= (const Matrix &B) {
 
 double* Matrix::c_flatten() const {
     // DECLARE
-    int rows, cols, i, j, idx;
+    size_t rows, cols, i, j, idx;
     double *tmp;
 
     // INITIALIZE
     rows = get_rows();
     cols = get_cols();
-    tmp = (double *) malloc(rows * cols * sizeof(double));
+    tmp = (double *) malloc(cells * sizeof(double));
 
     // LOAD
     for (i = 0; i < rows; i++) {
@@ -133,12 +135,46 @@ double* Matrix::c_flatten() const {
     return tmp;
 }
 
+void Matrix::hstack(std::vector<double> const &row) {
+    if (row.size() == get_cols()) {
+        matrix.push_back(row);
+        rows_inc();
+    }
+    else {
+        fprintf(stderr, "hstack() requires equal number of columns!\n");
+    }
+}
+
+void Matrix::hstack(std::vector<int> const &row) {
+    if (row.size() == get_cols()) {
+        std::vector<double> tmp(row.begin(), row.end());
+        matrix.push_back(tmp);
+        rows_inc();
+    }
+    else {
+        fprintf(stderr, "hstack() requires equal number of columns!\n");
+    }
+}
+
+void Matrix::hstack(Matrix B) {
+    size_t i;
+    if (get_cols() == B.get_cols()) {
+        for (i = 0; i < B.get_rows(); i++) {
+            matrix.push_back(B[i]);
+            rows_inc();
+        }
+    }
+    else {
+        fprintf(stderr, "hstack() requires equal number of columns!\n");
+    }
+}
+
 //// PRIVATE
 
 // Reads numbers of 'x'
 // TO DO: N-DIMENSIONS IS NOT SUPPORTED (only 2D)
 void Matrix::read_dim(std::string &line) {
-    int i;
+    size_t i;
     for (i = 0; i < line.length(); i++) {
         if (line[i] == 'x') dim++;
         else if (line[i] == ',') line[i] = ' ';
@@ -149,10 +185,10 @@ void Matrix::read_dim(std::string &line) {
     }
 }
 
-void Matrix::fill_values(std::ifstream &ifs, char delimiter) {
+void Matrix::file_data(std::ifstream &ifs, char delimiter) {
     // DECLARE
     std::string line, num;
-    int rows, cols, lineNum, i, j;
+    size_t rows, cols, lineNum, i, j;
     std::istringstream iss;
 
     // INITIALIZE
@@ -171,7 +207,7 @@ void Matrix::fill_values(std::ifstream &ifs, char delimiter) {
             if (j == cols) { std::cerr << "ERROR: Line " << lineNum << " has too many values has too many values in the row!\n"; exit(1); }
             try { tmp_row.push_back(stod(num)); }
             catch (std::exception &e) {
-                fprintf(stderr, "ERROR: Line %d has input data has invalid characters within the values!\n %s\n", lineNum, e.what());
+                fprintf(stderr, "ERROR: Line %lu has input data has invalid characters within the values!\n %s\n", lineNum, e.what());
                 exit(1);
             }
             j++;
@@ -192,10 +228,16 @@ void Matrix::fill_values(std::ifstream &ifs, char delimiter) {
 }
 
 void Matrix::load_values(double *d) {
-    int i, j, rows;
+    // DECLARE
+    unsigned long long i, j, rows, cols;
+
+    // INITIALIZE
     rows = get_rows();
+    cols = get_cols();
+
+    // LOAD
     for (i = 0; i < rows; i++) {
-        for (j = 0; j < get_cols(); j++) {
+        for (j = 0; j < cols; j++) {
             int idx = rows * i + j;
             matrix[i][j] = d[idx];
         }
@@ -203,7 +245,7 @@ void Matrix::load_values(double *d) {
 }
 
 void Matrix::copy(const Matrix &B){
-    int i, j;
+    size_t i, j;
     shape.resize(2);
     shape[0] = B.get_rows();
     shape[1] = B.get_cols();
@@ -237,21 +279,19 @@ void Matrix::matsub(const Matrix &B) {
 // CUDA
 void Matrix::cuda_matadd(const Matrix &B) {
     // DECLARE
-    int rows, cols, bytes;
+    size_t bytes;
     double *a_flat, *b_flat, *a_flat_device, *b_flat_device;
 
     // INITIALIZE
-    rows = get_rows();
-    cols = get_cols();
     a_flat = c_flatten();
     b_flat = B.c_flatten();
-    bytes = rows * cols * sizeof(double);
+    bytes = cells * sizeof(double);
 
     cudaMalloc((void **) &a_flat_device, bytes); // cudaMalloc
     cudaMalloc((void **) &b_flat_device, bytes);
     cudaMemcpy(a_flat_device, a_flat, bytes, cudaMemcpyHostToDevice); // cudaMemcpy
     cudaMemcpy(b_flat_device, b_flat, bytes, cudaMemcpyHostToDevice);
-    cuchine_matadd<<<1, 4>>>(a_flat_device, b_flat_device, rows*cols); // CUDA Kernel
+    cudai_add<<<1, 4>>>(a_flat_device, b_flat_device, cells); // CUDA Kernel
     cudaDeviceSynchronize();                                         
     cudaMemcpy(a_flat, a_flat_device, bytes, cudaMemcpyDeviceToHost); // Copy from device to host
     load_values(a_flat);     // Load matrix with array
@@ -263,21 +303,19 @@ void Matrix::cuda_matadd(const Matrix &B) {
 
 void Matrix::cuda_matsub(const Matrix &B) {
     // DECLARE
-    int rows, cols, bytes;
+    size_t bytes;
     double *a_flat, *b_flat, *a_flat_device, *b_flat_device;
 
     // INITIALIZE
-    rows = get_rows();
-    cols = get_cols();
     a_flat = c_flatten();
     b_flat = B.c_flatten();
-    bytes = rows * cols * sizeof(double);
+    bytes = cells * sizeof(double);
 
     cudaMalloc((void **) &a_flat_device, bytes); // cudaMalloc
     cudaMalloc((void **) &b_flat_device, bytes);
     cudaMemcpy(a_flat_device, a_flat, bytes, cudaMemcpyHostToDevice); // cudaMemcpy
     cudaMemcpy(b_flat_device, b_flat, bytes, cudaMemcpyHostToDevice);
-    cuchine_matsub<<<1, 4>>>(a_flat_device, b_flat_device, rows*cols); // CUDA Kernel
+    cudai_sub<<<1, 4>>>(a_flat_device, b_flat_device, cells); // CUDA Kernel
     cudaDeviceSynchronize();                                         
     cudaMemcpy(a_flat, a_flat_device, bytes, cudaMemcpyDeviceToHost); // Copy from device to host
     load_values(a_flat);     // Load matrix with array

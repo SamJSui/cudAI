@@ -1,17 +1,17 @@
-#include "cuchine.cuh"
+#include "cudai.cuh"
 
 __global__
-void cuchine_matadd(double *a, double *b, int entries) {
+void cudai_add(double *a, double *b, int cells) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < entries) {
+    if (idx < cells) {
         a[idx] += b[idx];
     }
 }
 
 __global__
-void cuchine_matsub(double *a, double *b, int entries) {
+void cudai_sub(double *a, double *b, int cells) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < entries) {
+    if (idx < cells) {
         a[idx] -= b[idx];
     }
 }
