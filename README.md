@@ -28,7 +28,7 @@
 
 ## Usage
 
-[Documentation](https://github.com/SamJSui/cudAI) (UNDER CONSTRUCTION)
+[Documentation](https://cudai-docs.readthedocs.io/en/latest/) (UNDER CONSTRUCTION)
 
 ## Roadmap
 
