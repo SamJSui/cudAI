@@ -10,12 +10,16 @@
 
 ## Getting Started
 
+**Windows / Linux**:
+[NVIDIA CUDA Download](https://developer.nvidia.com/cuda-downloads)
 
+**Linux**:
+`sudo apt install nvidia-cuda-toolkit`
 
 ### Installation
 
-1. `git clone https://github.com/SamJSui/CUchine_DArning`
-2. `cd CUchine_DArning`
+1. `git clone https://github.com/SamJSui/cudAI`
+2. `cd cudAI/`
 3. Modify the following (if needed):
    1. **makefile**, if making changes to command-line execution
    2. **src/main.cu**, to use the library
@@ -24,7 +28,7 @@
 
 ## Usage
 
-[Documentation](https://github.com/SamJSui/CUchine_DArning) (UNDER CONSTRUCTION)
+[Documentation](https://github.com/SamJSui/cudAI) (UNDER CONSTRUCTION)
 
 ## Roadmap
 
