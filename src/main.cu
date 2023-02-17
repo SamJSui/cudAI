@@ -12,13 +12,12 @@ int main(int argc, char **argv) {
     filename2 = argv[2];
 
     // MATRIX
-    Matrix A, B;
+    Matrix A, B, C;
     A.read_file(filename1);
     B.read_file(filename2);
 
-    printf("%lf\n", B[1][1]);
-    A.read_file(filename2);
-    printf("%lf\n", A[1][1]);
-
+    C = A + B;
+    std::cout << C;
+    // fprintf(stderr, "TEST\n");
     return 0;
 }

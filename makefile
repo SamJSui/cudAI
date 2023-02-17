@@ -7,10 +7,11 @@ EXECUTABLES = bin/main
 all: $(EXECUTABLES)
 
 bin/main: src/*.cu
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ include/*.cu
 
-run: bin/main
-	$^ $(INPUT)
+run:
+	$(CC) $(CFLAGS) -o $(EXECUTABLES) src/main.cu include/*.cu
+	$(EXECUTABLES) $(INPUT)
 
 val: bin/main
 	valgrind $^ $(INPUT)
