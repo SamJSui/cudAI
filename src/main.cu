@@ -10,15 +10,14 @@ int main(int argc, char **argv) {
     // INITIALIZE
     filename1 = argv[1];
     filename2 = argv[2];
-
     // MATRIX
     Matrix A, B, C;
     A.read_file(filename1);
     B.read_file(filename2);
 
-    std::vector<double> t({10, 11});
-    A.hstack(B);
-    A.hstack(t);
+    A *= B;
+    
     std::cout << A;
+
     return 0;
 }

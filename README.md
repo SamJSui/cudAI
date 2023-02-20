@@ -2,7 +2,7 @@
 
 ## About 
 
-**cudAI** is a CUDA C/C++ library that parallelizes linear algebra and machine learning algorithms to provide efficient computing. The library is to combine aspects of Python's NumPy and Scikit-Learn, providing matrix operations and model training in a C/C++ environment.
+**cudAI** is a CUDA C/C++ library that parallelizes linear algebra and machine learning algorithms to provide efficient computing. The library combines aspects of Python's NumPy and Scikit-Learn, providing GPU-bound matrix operations and model training in a C/C++ environment.
 
 ### Built with
 
@@ -34,7 +34,7 @@
 
 - [ ] Documentation
 - [ ] Matrix Operations
-  - [ ] Matrix Addition/Subtraction
+  - [x] Matrix Addition/Subtraction
   - [ ] Matrix Multiplication
   - [ ] Matrix Transposition
 - [ ] Gaussian Elimination

@@ -1,7 +1,7 @@
 CC = nvcc
 INCLUDES = -I include/
 CFLAGS = $(INCLUDES) -g
-INPUT = data/2x2.txt data/2x2_1.txt
+INPUT = data/1x3.txt data/1x3_1.txt
 EXECUTABLES = bin/main
 
 all: $(EXECUTABLES)

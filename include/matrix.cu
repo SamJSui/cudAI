@@ -3,7 +3,7 @@
 //// PUBLIC
 
 Matrix::Matrix() {
-    dim = 0;
+    shape.resize(2, 0);
     cells = 0;
     device = 0;                                    // Device check
     cudaGetDeviceCount((int *) &device);
@@ -17,13 +17,14 @@ void Matrix::read_file(char *filename, char delimiter) {
     // READING IN FILE AGAIN
     if (matrix.size() > 0) {
         size_t i;
-        dim = 0;
-        for (i = 0; i < get_rows(); i++) { matrix[i].clear(); } // CLEAR
+        for (i = 0; i < get_rows(); i++) { matrix[i].clear(); }
+        shape[0] = 0;
+        shape[1] = 0;
     }
 
     // DECLARE
     std::string line, num;
-    size_t dim_idx;
+    size_t rows, cols;
 
     // FILE HANDLING
     std::ifstream ifs(filename, std::ifstream::in);
@@ -33,29 +34,33 @@ void Matrix::read_file(char *filename, char delimiter) {
     }
 
     // INITIALIZE
-    getline(ifs, line); // Get dimensions
-    read_dim(line); // Clean ',' and increment number of dimensions
-    std::istringstream iss(line);
-    dim_idx = 0;
+    rows = 0;
+    cols = 0;
+    while (getline(ifs, line)) {
+        if (cols == 0) {
+            std::istringstream iss(line);
+            while(getline(iss, num, delimiter)) {
+                cols++;
+            }
+        }
+        rows++;
+    }
 
     // MATRIX SHAPE
-    while (getline(iss, num, 'x')) {
-        try { shape.push_back(stoi(num)); } // Reads in rows and columns
-        catch (std::exception &e) { 
-            fprintf(stderr, "ERROR: Input File has invalid values (check the characters)\n %s\n", e.what()); 
-            exit(1); 
-        }
-        if (dim_idx == dim) break;
-        ++dim_idx;
-    }
-    cells = get_rows() * get_cols();
+    shape[0] = rows;
+    shape[1] = cols;
+    cells = rows * cols;
 
     // MATRIX VALUES
+    ifs.clear();
+    ifs.seekg(0, std::ios::beg);
     file_data(ifs, delimiter);
 
     // CLOSE FILE
     ifs.close();
 }
+
+// OPERATORS
 
 std::vector<double> Matrix::operator[](long long idx) const {
     if (get_rows() > 0 && idx > -1 && idx < get_rows()) return matrix[idx];
@@ -80,20 +85,6 @@ std::ostream& operator<< (std::ostream &os, const Matrix &M) {
     return os;
 }
 
-Matrix Matrix::operator+(const Matrix &B) {
-    Matrix C;
-    C.copy(*this);
-    C += B;
-    return C;
-}
-
-Matrix Matrix::operator-(const Matrix &B) {
-    Matrix C;
-    C.copy(*this);
-    C -= B;
-    return C;
-}
-
 void Matrix::operator+= (const Matrix &B) {
     // ERROR CHECK
     if (get_rows() != B.get_rows() || get_cols() != B.get_cols()) {
@@ -114,6 +105,29 @@ void Matrix::operator-= (const Matrix &B) {
     if (device) cuda_matsub(B);
     else matsub(B);
 }
+
+void Matrix::operator*= (const Matrix &B) {
+    if (get_rows() == 1 && B.get_rows() == 1 && get_cols() == B.get_cols()) {
+        if (device) { cuda_hadamard(B); }
+        else hadamard(B);
+    }
+}
+
+Matrix Matrix::operator+(const Matrix &B) {
+    Matrix C;
+    C.copy(*this);
+    C += B;
+    return C;
+}
+
+Matrix Matrix::operator-(const Matrix &B) {
+    Matrix C;
+    C.copy(*this);
+    C -= B;
+    return C;
+}
+
+// MANIPULATION
 
 double* Matrix::c_flatten() const {
     // DECLARE
@@ -171,20 +185,6 @@ void Matrix::hstack(Matrix B) {
 
 //// PRIVATE
 
-// Reads numbers of 'x'
-// TO DO: N-DIMENSIONS IS NOT SUPPORTED (only 2D)
-void Matrix::read_dim(std::string &line) {
-    size_t i;
-    for (i = 0; i < line.length(); i++) {
-        if (line[i] == 'x') dim++;
-        else if (line[i] == ',') line[i] = ' ';
-        if (dim > 1) { 
-            fprintf(stderr, "ERROR: Input File has too many dimensions!\n");
-            exit(1);
-        }
-    }
-}
-
 void Matrix::file_data(std::ifstream &ifs, char delimiter) {
     // DECLARE
     std::string line, num;
@@ -197,10 +197,6 @@ void Matrix::file_data(std::ifstream &ifs, char delimiter) {
     lineNum = 2;
 
     while (getline(ifs, line)) {
-        if (i == rows) { 
-            fprintf(stderr, "ERROR: Input file has too many rows!\n");
-            exit(1);
-        }
         iss = std::istringstream(line);
         std::vector<double> tmp_row;
         while (getline(iss, num, delimiter)) {
@@ -214,15 +210,14 @@ void Matrix::file_data(std::ifstream &ifs, char delimiter) {
         }
         matrix.push_back(tmp_row);
         if (j != cols) {
-            fprintf(stderr, "ERROR: Not enough values in input file!\n");
+            fprintf(stderr, "ERROR: Not enough values in input file columns!\n");
             exit(1);
         }
         j = 0;
         i++;
-        lineNum++;
     }
     if (i != rows) {
-        fprintf(stderr, "ERROR: Not enough values in input file!\n");
+        fprintf(stderr, "ERROR: Not enough values in input file rows!\n");
         exit(1);
     }
 }
@@ -276,6 +271,14 @@ void Matrix::matsub(const Matrix &B) {
     }
 }
 
+void Matrix::hadamard(const Matrix &B) {
+
+}
+
+void Matrix::dotprod(const Matrix &B) {
+    ;
+}
+
 // CUDA
 void Matrix::cuda_matadd(const Matrix &B) {
     // DECLARE
@@ -302,6 +305,30 @@ void Matrix::cuda_matadd(const Matrix &B) {
 }
 
 void Matrix::cuda_matsub(const Matrix &B) {
+    // DECLARE
+    size_t bytes;
+    double *a_flat, *b_flat, *a_flat_device, *b_flat_device;
+
+    // INITIALIZE
+    a_flat = c_flatten();
+    b_flat = B.c_flatten();
+    bytes = cells * sizeof(double);
+
+    cudaMalloc((void **) &a_flat_device, bytes); // cudaMalloc
+    cudaMalloc((void **) &b_flat_device, bytes);
+    cudaMemcpy(a_flat_device, a_flat, bytes, cudaMemcpyHostToDevice); // cudaMemcpy
+    cudaMemcpy(b_flat_device, b_flat, bytes, cudaMemcpyHostToDevice);
+    cudai_sub<<<1, 4>>>(a_flat_device, b_flat_device, cells); // CUDA Kernel
+    cudaDeviceSynchronize();                                         
+    cudaMemcpy(a_flat, a_flat_device, bytes, cudaMemcpyDeviceToHost); // Copy from device to host
+    load_values(a_flat);     // Load matrix with array
+    cudaFree(a_flat_device); // FREE
+    cudaFree(b_flat_device);
+    free(a_flat);
+    free(b_flat);
+}
+
+void Matrix::cuda_dotprod(const Matrix &B) {
     // DECLARE
     size_t bytes;
     double *a_flat, *b_flat, *a_flat_device, *b_flat_device;
