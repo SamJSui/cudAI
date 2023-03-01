@@ -15,9 +15,14 @@ int main(int argc, char **argv) {
     A.read_file(filename1);
     B.read_file(filename2);
 
+    std::cout << A << '\n';
+    std::cout << B << '\n';
+
+    std::cout << "\n---RESULT---\n\n";
+
     A *= B;
     
-    std::cout << A;
+    std::cout << A << '\n';
 
     return 0;
 }

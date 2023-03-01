@@ -127,6 +127,66 @@ Matrix Matrix::operator-(const Matrix &B) {
     return C;
 }
 
+Matrix Matrix::operator*(const Matrix &B) {
+    if (get_rows() == B.get_rows() && get_cols() == B.get_cols()) {
+        Matrix C;
+        C.copy(*this);
+        C.hadamard(B);
+        return C;
+    }
+    else if (get_cols() == B.get_rows()) {
+        Matrix C(get_rows(), B.get_cols());
+        C.matmul(B);
+        return C;
+    }
+    else {
+        return Matrix();
+    }
+}
+
+Matrix Matrix::add(const Matrix &B) {
+    Matrix C;
+    C.copy(*this);
+    C += B;
+    return C;
+}
+
+Matrix Matrix::sub(const Matrix &B) {
+    Matrix C;
+    C.copy(*this);
+    C -= B;
+    return C;
+}
+
+Matrix Matrix::mul(const Matrix &B) {
+    if (get_rows() == B.get_rows() && get_cols() == B.get_cols()) {
+        Matrix C;
+        C.copy(*this);
+        C.hadamard(B);
+        return C;
+    }
+    else if (get_cols() == B.get_rows()) {
+        Matrix C(get_rows(), B.get_cols());
+        C.matmul(*this, B);
+        return C;
+    }
+    else {
+        return Matrix();
+    }
+}
+
+void Matrix::hadamard(const Matrix &B) {
+    if (device) { cuda_hadamard(B); }
+    else {
+        size_t i, j;
+        for (i = 0; i < get_rows(); i++) {
+            for (j = 0; j < get_cols(); j++) {
+                matrix[i][j] *= B[i][j];
+            }
+        }
+    }
+}
+
 // MANIPULATION
 
 double* Matrix::c_flatten() const {
@@ -147,6 +207,22 @@ double* Matrix::c_flatten() const {
         }
     }
     return tmp;
+}
+
+double** Matrix::c_alloc() const {
+    // DECLARE
+    double **c_Matrix;
+    size_t i, j;
+
+    // INITIALIZE
+    c_Matrix = (double **) malloc(get_rows() * sizeof(double *));
+    for (i = 0; i < get_rows(); i++) {
+        c_Matrix[i] = (double *) malloc(get_cols() * sizeof(double));
+        for (j = 0; j < get_cols(); j++) {
+            c_Matrix[i][j] = matrix[i][j];
+        }
+    }
+    return c_Matrix;
 }
 
 void Matrix::hstack(std::vector<double> const &row) {
@@ -185,6 +261,22 @@ void Matrix::hstack(Matrix B) {
 
 //// PRIVATE
 
+// CONSTRUCTOR/DESTRUCTOR
+Matrix::Matrix(const size_t rows, const size_t cols) {
+    size_t i;
+    matrix.resize(rows);
+    for (i = 0; i < rows; i++) {
+        matrix[i].resize(cols);
+    }
+    shape.resize(2, 0);
+    shape[0] = rows;
+    shape[1] = cols;
+    cells = rows * cols;
+    device = 0;                                    // Device check
+    cudaGetDeviceCount((int *) &device);
+}
+
+// MANIPULATION
 void Matrix::file_data(std::ifstream &ifs, char delimiter) {
     // DECLARE
     std::string line, num;
@@ -224,15 +316,11 @@ void Matrix::file_data(std::ifstream &ifs, char delimiter) {
 
 void Matrix::load_values(double *d) {
     // DECLARE
-    unsigned long long i, j, rows, cols;
-
-    // INITIALIZE
-    rows = get_rows();
-    cols = get_cols();
+    unsigned long long i, j;
 
     // LOAD
-    for (i = 0; i < rows; i++) {
-        for (j = 0; j < cols; j++) {
+    for (i = 0; i < get_rows(); i++) {
+        for (j = 0; j < get_cols(); j++) {
             int idx = rows * i + j;
             matrix[i][j] = d[idx];
         }
@@ -240,10 +328,15 @@ void Matrix::load_values(double *d) {
 }
 
 void Matrix::copy(const Matrix &B){
+    // DECLARE
     size_t i, j;
+    
+    // INITIALIZE
     shape.resize(2);
     shape[0] = B.get_rows();
     shape[1] = B.get_cols();
+
+    // LOAD
     matrix.resize(shape[0], std::vector<double>(shape[1]));
     for (i = 0; i < get_rows(); i++) {
         for (j = 0; j < get_cols(); j++) {
@@ -271,30 +364,28 @@ void Matrix::matsub(const Matrix &B) {
     }
 }
 
-void Matrix::hadamard(const Matrix &B) {
+Matrix Matrix::matmul(const Matrix &A, const Matrix &B) {
 
-}
-
-void Matrix::dotprod(const Matrix &B) {
-    ;
 }
 
 // CUDA
 void Matrix::cuda_matadd(const Matrix &B) {
     // DECLARE
-    size_t bytes;
+    size_t bytes, N_BLOCKS, N_THREADS;
     double *a_flat, *b_flat, *a_flat_device, *b_flat_device;
 
     // INITIALIZE
     a_flat = c_flatten();
     b_flat = B.c_flatten();
     bytes = cells * sizeof(double);
+    N_THREADS = 1024;
+    N_BLOCKS = cells/1024 + 1;
 
     cudaMalloc((void **) &a_flat_device, bytes); // cudaMalloc
     cudaMalloc((void **) &b_flat_device, bytes);
     cudaMemcpy(a_flat_device, a_flat, bytes, cudaMemcpyHostToDevice); // cudaMemcpy
     cudaMemcpy(b_flat_device, b_flat, bytes, cudaMemcpyHostToDevice);
-    cudai_add<<<1, 4>>>(a_flat_device, b_flat_device, cells); // CUDA Kernel
+    cudai_add<<<N_BLOCKS, N_THREADS>>>(a_flat_device, b_flat_device, cells); // CUDA Kernel
     cudaDeviceSynchronize();                                         
     cudaMemcpy(a_flat, a_flat_device, bytes, cudaMemcpyDeviceToHost); // Copy from device to host
     load_values(a_flat);     // Load matrix with array
@@ -306,19 +397,21 @@ void Matrix::cuda_matadd(const Matrix &B) {
 
 void Matrix::cuda_matsub(const Matrix &B) {
     // DECLARE
-    size_t bytes;
+    size_t bytes, N_BLOCKS, N_THREADS;
     double *a_flat, *b_flat, *a_flat_device, *b_flat_device;
 
     // INITIALIZE
     a_flat = c_flatten();
     b_flat = B.c_flatten();
     bytes = cells * sizeof(double);
+    N_THREADS = 1024;
+    N_BLOCKS = cells/1024 + 1;
 
     cudaMalloc((void **) &a_flat_device, bytes); // cudaMalloc
     cudaMalloc((void **) &b_flat_device, bytes);
     cudaMemcpy(a_flat_device, a_flat, bytes, cudaMemcpyHostToDevice); // cudaMemcpy
     cudaMemcpy(b_flat_device, b_flat, bytes, cudaMemcpyHostToDevice);
-    cudai_sub<<<1, 4>>>(a_flat_device, b_flat_device, cells); // CUDA Kernel
+    cudai_sub<<<N_BLOCKS, N_THREADS>>>(a_flat_device, b_flat_device, cells); // CUDA Kernel
     cudaDeviceSynchronize();                                         
     cudaMemcpy(a_flat, a_flat_device, bytes, cudaMemcpyDeviceToHost); // Copy from device to host
     load_values(a_flat);     // Load matrix with array
@@ -328,21 +421,22 @@ void Matrix::cuda_matsub(const Matrix &B) {
     free(b_flat);
 }
 
-void Matrix::cuda_dotprod(const Matrix &B) {
-    // DECLARE
-    size_t bytes;
+void Matrix::cuda_hadamard(const Matrix &B) {
+    size_t bytes, N_BLOCKS, N_THREADS;
     double *a_flat, *b_flat, *a_flat_device, *b_flat_device;
 
     // INITIALIZE
     a_flat = c_flatten();
     b_flat = B.c_flatten();
     bytes = cells * sizeof(double);
+    N_THREADS = 1024;
+    N_BLOCKS = cells/1024 + 1;
 
     cudaMalloc((void **) &a_flat_device, bytes); // cudaMalloc
     cudaMalloc((void **) &b_flat_device, bytes);
     cudaMemcpy(a_flat_device, a_flat, bytes, cudaMemcpyHostToDevice); // cudaMemcpy
     cudaMemcpy(b_flat_device, b_flat, bytes, cudaMemcpyHostToDevice);
-    cudai_sub<<<1, 4>>>(a_flat_device, b_flat_device, cells); // CUDA Kernel
+    cudai_hadamard<<<N_BLOCKS, N_THREADS>>>(a_flat_device, b_flat_device, cells); // CUDA Kernel
     cudaDeviceSynchronize();                                         
     cudaMemcpy(a_flat, a_flat_device, bytes, cudaMemcpyDeviceToHost); // Copy from device to host
     load_values(a_flat);     // Load matrix with array

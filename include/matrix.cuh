@@ -7,12 +7,15 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
-#include <array>
 
 class Matrix {
     public:
-        Matrix(); // CONSTRUCTOR / DESTRUCTOR
+        // CONSTRUCTOR / DESTRUCTOR
+        Matrix();
+        Matrix(const size_t, const size_t);
         ~Matrix();
+        // MEMBER VARIABLES
+        size_t cells, rows, col;
         // SHAPE
         size_t get_rows() const { return shape[0]; };
         size_t get_cols() const { return shape[1]; };
@@ -27,8 +30,13 @@ class Matrix {
         Matrix operator+ (const Matrix &);
         Matrix operator- (const Matrix &);
         Matrix operator* (const Matrix &);
+        Matrix add(const Matrix &B); 
+        Matrix sub(const Matrix &B);
+        Matrix mul(const Matrix &B);
+        void hadamard(const Matrix &B);
         // MANIPULATION
         double* c_flatten() const;
+        double** c_alloc() const;
         void hstack(std::vector<double> const&);
         void hstack(std::vector<int> const&);
         void hstack(Matrix);
@@ -36,7 +44,6 @@ class Matrix {
         // MEMBER VARIABLES
         std::vector<std::vector<double>> matrix;
         std::vector<size_t> shape;
-        size_t cells;
         bool device;
         // IMPORT
         void file_data(std::ifstream &, char);
@@ -50,12 +57,11 @@ class Matrix {
         // OPERATIONS
         void matadd(const Matrix &B); 
         void matsub(const Matrix &B);
-        void hadamard(const Matrix &B);
-        void dotprod(const Matrix &B);
+        Matrix matmul(const Matrix &B);
         // CUDA
         void cuda_matadd(const Matrix &B);
         void cuda_matsub(const Matrix &B);
+        Matrix cuda_matmul(const Matrix &B);
         void cuda_hadamard(const Matrix &B);
-        void cuda_dotprod(const Matrix &B);
 };
 #endif

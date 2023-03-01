@@ -10,5 +10,7 @@
 
 __global__ void cudai_add(double *, double *, int);
 __global__ void cudai_sub(double *, double *, int);
+__global__ void cudai_hadamard(double *, double *, int);
+__global__ void cudai_dot(double *, double *, int, double *);
 
 #endif
